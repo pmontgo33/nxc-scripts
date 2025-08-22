@@ -58,9 +58,6 @@ load_env_file() {
                 "DEFAULT_GATEWAY")
                     ENV_DEFAULT_GATEWAY="$value"
                     ;;
-                "SOPS_KEY_PATH")
-                    ENV_SOPS_KEY_PATH="$value"
-                    ;;
             esac
         done < "$env_file"
         return 0
@@ -467,20 +464,6 @@ else
 fi
 
 echo "Container IP: $container_ip"
-echo
-
-echo "Copying SOPS key to container..."
-ssh "root@$pve_host" "pct exec $vmid -- /run/current-system/sw/bin/mkdir -p /etc/sops/age"
-
-# Use SOPS key path from .env or default
-if [ -n "$ENV_SOPS_KEY_PATH" ]; then
-    sops_key_path="$ENV_SOPS_KEY_PATH"
-    echo "Using SOPS key path from .env: $sops_key_path"
-else
-    sops_key_path="/etc/sops/age/keys.txt"
-fi
-
-cat "$sops_key_path" | ssh root@$pve_host "pct exec $vmid -- /run/current-system/sw/bin/tee /etc/sops/age/keys.txt > /dev/null"
 echo
 
 # Get current generation number before rebuild
