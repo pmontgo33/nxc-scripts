@@ -24,7 +24,7 @@
 
   users.users.root = {
     # default password is iamironman
-    hashedPassword = "$y$j9T$K0D21xiZlpAQzr/f6F5Ca0$WrcFIx3qQf1/iznRpFfwfuepUED6Fe2VXGNM9D7BPN8";
+    hashedPassword = "$y$j9T$Gj9ZtSsGzvkVArfzHyzW0.$4kc9W/b08oUKxZxXH6R4OwT3k3QjNZocf1QtW/BnXA8";
   };
 
   # Automatic Garbage Collection
