@@ -2,10 +2,12 @@
 
 This repository provides automated scripts to create and manage NixOS LXCs (NXCs) on Proxmox VE hosts. NXC combines the declarative configuration power of NixOS with the portability and isolation benefits of Linux Containers.
 
+You can clone this repository and create NXCs using the examples in this script, or you can point the scripts to your own nix configuration repository and deploy/update your own custom NXCs.
+
 ## Overview
 
 The NXC scripts automate the process of:
-- Building NixOS LXC templates from a Nix flake configurations
+- Building NixOS LXC templates from a Nix flake configuration
 - Creating new LXC containers on Proxmox VE hosts
 - Updating existing containers with new configurations
 - Managing container networking and special features (like Tailscale support)
@@ -19,26 +21,20 @@ The NXC scripts automate the process of:
 - Nix flakes must be enabled on your system
 
 ### Flake Structure
-Your NixOS flake should define multiple host configurations in `nixosConfigurations`. The scripts will automatically detect available hosts and allow you to select which configuration to deploy.
+Your flake.nix should define multiple host configurations as shown in the examples in this repository. The scripts will automatically detect available hosts and allow you to select which configuration to deploy.
 
-Example flake structure:
-```nix
-{
-  outputs = { self, nixpkgs, ... }: {
-    nixosConfigurations = {
-      nxc-base = nixpkgs.lib.nixosSystem { ... };
-      nxc-tailscale = nixpkgs.lib.nixosSystem { ... };
-      nix-fury = nixpkgs.lib.nixosSystem { ... };
-      omnitools = nixpkgs.lib.nixosSystem { ... };
-    };
-  };
-}
+## Installation
+
+### 1. Clone Repository to your existing NixOS System
+
+```bash
+mkdir nxc-scripts
+cd nxc-scripts
+git clone https://github.com/pmontgo33/nxc-scripts.git
 ```
 
-## Configuration
-
-### Environment File (.env)
-Create a `.env` file in the `scripts/` directory to set default values and reduce prompts:
+### 2. Update Environment File (optional)
+Update the `.env` file in the `scripts/` directory to set default values and reduce prompts:
 
 ```bash
 # Repository Configuration
@@ -57,19 +53,18 @@ DEFAULT_DISK_SIZE="20"
 DEFAULT_NETWORK_OPTION="1"
 DEFAULT_GATEWAY="192.168.86.1"
 
-
 ```
+### 2. Run one of the Scripts
 
 ## Scripts
 
-### nxc-gen.sh - Create New NXC
+### Create New NXC
 
 Creates a new NixOS LXC from your flake configuration.
 
 **Usage:**
 ```bash
-cd scripts/
-./nxc-gen.sh
+bash scripts/nxc-gen.sh
 ```
 
 **Process:**
@@ -86,14 +81,13 @@ cd scripts/
 - Tailscale support detection and TUN device configuration
 - Generation verification to ensure successful deployment
 
-### nxc-update.sh - Update Existing NXC Container
+### Update an Existing NXC
 
 Updates an existing NixOS LXC container with the latest configuration from your flake.
 
 **Usage:**
 ```bash
-cd scripts/
-./nxc-update.sh
+bash scripts/nxc-update.sh
 ```
 
 **Process:**
@@ -113,32 +107,10 @@ When creating containers, you have three networking options:
 ## Special Features
 
 ### Tailscale Support
-The scripts automatically detect if your host configuration has Tailscale enabled and will:
-- Configure TUN device access in the container
-- Add necessary LXC configuration for VPN functionality
+The scripts automatically detect if your host configuration has Tailscale enabled and will configure TUN device access in the container configuration file
 
 ### Template Caching
 Base templates are cached on the Proxmox host to speed up subsequent container creation.
-
-## Example Workflow
-
-1. **Set up environment:**
-   ```bash
-   cp scripts/.env.example scripts/.env
-   # Edit .env with your settings
-   ```
-
-2. **Create a new container:**
-   ```bash
-   cd scripts/
-   ./nxc-gen.sh
-   ```
-
-3. **Update an existing container:**
-   ```bash
-   cd scripts/
-   ./nxc-update.sh
-   ```
 
 ## Troubleshooting
 
