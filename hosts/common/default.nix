@@ -22,6 +22,11 @@
   # Enable the Flakes feature and the accompanying new nix command-line tool
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
+  users.users.root = {
+    # default password is iamironman
+    hashedPassword = "$y$j9T$K0D21xiZlpAQzr/f6F5Ca0$WrcFIx3qQf1/iznRpFfwfuepUED6Fe2VXGNM9D7BPN8";
+  };
+
   # Automatic Garbage Collection
   nix.gc = {
     automatic = true;
