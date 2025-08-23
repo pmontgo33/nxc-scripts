@@ -1,44 +1,74 @@
 # NXC Scripts
 
-This repository provides automated scripts to create and manage NixOS LXCs (NXCs) on Proxmox VE hosts. NXC combines the declarative configuration power of NixOS with the portability and isolation benefits of Linux Containers.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![NixOS](https://img.shields.io/badge/NixOS-5277C3?logo=nixos&logoColor=white)](https://nixos.org/)
+[![Proxmox](https://img.shields.io/badge/Proxmox-E57000?logo=proxmox&logoColor=white)](https://www.proxmox.com/)
 
-You can clone this repository and create NXCs using the examples in this script, or you can point the scripts to your own nix configuration repository and deploy/update your own custom NXCs.
+> Automated scripts to create and manage NixOS LXCs (NXCs) on Proxmox VE hosts
 
-## Overview
+NXC combines the declarative configuration power of NixOS with the portability and isolation benefits of Linux Containers. You can clone this repository and use the included examples, or point the scripts to your own Nix configuration repository to deploy and update your custom NXCs.
 
-The NXC scripts automate the process of:
-- Building NixOS LXC templates from a Nix flake configuration
-- Creating new LXC containers on Proxmox VE hosts
-- Updating existing containers with new configurations
-- Managing container networking and special features (like Tailscale support)
+Is this the same as [Proxmox Helper Scripts](https://community-scripts.github.io/ProxmoxVE/scripts)? Yes and no. The helper scripts were my inspiration for creating this project. The helper scripts make it so simple to get an application up and running as an isolated container within Proxmox. NXC strives to do the same while combining the declaritive configuration of NixOS. This makes the code behind the scripts reproducible, customizable, and auditable. 
 
-## Prerequisites
+## 📚 Table of Contents
+
+- [🚀 Quick Start](#-quick-start)
+- [📋 Prerequisites](#-prerequisites)
+- [📦 Installation](#-installation)
+- [📖 Usage](#-usage)
+- [🔧 Special Features](#-special-features)
+- [🛠️ Troubleshooting](#️-troubleshooting)
+- [📊 Compatibility](#-compatibility)
+- [📚 Related Projects](#-related-projects)
+- [📄 License](#-license)
+- [🙏 Acknowledgments](#-acknowledgments)
+
+## 🚀 Quick Start
+
+```bash
+# 1. Clone the repository on your NixOS system
+git clone https://github.com/pmontgo33/nxc-scripts.git
+
+# 2. Configure your environment by editing .env with your Proxmox and repository settings
+cd nxc-scripts
+nano scripts/.env
+
+# 3. Create your first NXC
+bash scripts/nxc-gen.sh
+```
+
+## 📋 Prerequisites
 
 ### System Requirements
-- A NixOS system to run the scripts from
-- SSH access to your Proxmox VE host
-- Git repository containing your NixOS flake configuration
-- Nix flakes must be enabled on your system
+- **NixOS system** to run the scripts from
+- **SSH access** to your Proxmox VE host (key-based authentication recommended)
+- **Git repository** containing your NixOS flake configuration, or use the examples in this repository
+- **Nix flakes enabled** on your system
 
-### Flake Structure
-Your flake.nix should define multiple host configurations as shown in the examples in this repository. The scripts will automatically detect available hosts and allow you to select which configuration to deploy.
+### Proxmox VE Requirements
+- Proxmox VE 7.0 or 8.0 (not tested on 9.0, yet)
+- Sufficient storage and resources for containers
 
-## Installation
+### 🏗️ Flake Structure
+
+Your `flake.nix` should define multiple host configurations as shown in the [flake.nix](flake.nix) in this repository. The scripts will automatically detect available hosts and allow you to select which configuration to deploy.
+
+## 📦 Installation
 
 ### 1. Clone Repository to your existing NixOS System
 
 ```bash
-mkdir nxc-scripts
-cd nxc-scripts
 git clone https://github.com/pmontgo33/nxc-scripts.git
 ```
 
-### 2. Update Environment File (optional)
-Update the `.env` file in the `scripts/` directory to set default values and reduce prompts:
+### 2. Update Environment File (Optional)
+
+Update the `.env` file in the `scripts/` directory to set default values and reduce prompts. See the [Network Configuration Options](#-network-configuration-options) to set the `DEFAULT_NETWORK_OPTION`
+
 
 ```bash
 # Repository Configuration
-REPOSITORY_URL="https://github.com/pmontgo33/nix-config.git"
+REPOSITORY_URL="https://github.com/pmontgo33/nxc-scripts.git"
 BRANCH="master"
 
 # Proxmox Configuration
@@ -51,29 +81,26 @@ DEFAULT_DISK_SIZE="20"
 
 # Default Network Settings
 DEFAULT_NETWORK_OPTION="1"
-DEFAULT_GATEWAY="192.168.86.1"
-
+DEFAULT_GATEWAY="192.168.1.1"
 ```
-### 2. Run one of the Scripts
 
-## Scripts
+## 📖 Usage
 
-### Create New NXC
+### 🏗️ Create New NXC
 
 Creates a new NixOS LXC from your flake configuration.
 
-**Usage:**
 ```bash
 bash scripts/nxc-gen.sh
 ```
 
 **Process:**
-1. Detects or prompts for Git repository and branch
-2. Fetches available host configurations from your flake
-3. Prompts for container settings (VMID, memory, cores, disk, network)
-4. Generates or reuses NXC base template
-5. Creates and configures the LXC on Proxmox
-6. Rebuilds the container with your selected host configuration
+1. 🔍 Detects or prompts for Git repository and branch
+2. 📋 Fetches available host configurations from your flake
+3. ❓ Prompts for container settings (VMID, memory, cores, disk, network)
+4. 🏗️ Generates or reuses NXC base template
+5. 🚀 Creates and configures the LXC on Proxmox
+6. 🔧 Rebuilds the container with your selected host configuration
 
 **Features:**
 - Automatic template generation and caching
@@ -81,59 +108,98 @@ bash scripts/nxc-gen.sh
 - Tailscale support detection and TUN device configuration
 - Generation verification to ensure successful deployment
 
-### Update an Existing NXC
+### 🔄 Update an Existing NXC
 
 Updates an existing NixOS LXC container with the latest configuration from your flake.
 
-**Usage:**
 ```bash
 bash scripts/nxc-update.sh
 ```
 
 **Process:**
-1. Detects or prompts for Git repository and branch
-2. Fetches available host configurations
-3. Lists existing NixOS LXC containers on your Proxmox host
-4. Rebuilds selected container with updated configuration
+1. 🔍 Detects or prompts for Git repository and branch
+2. 📋 Fetches available host configurations
+3. 📃 Lists existing NixOS LXC containers on your Proxmox host
+4. 🔧 Rebuilds selected container with updated configuration
 
-## Network Configuration Options
+## 🔧 Special Features
+
+### 🌐 Network Configuration Options
 
 When creating containers, you have three networking options:
 
-1. **Static IP (192.168.1.VMID/24)** - Automatic IP based on container VMID
-2. **DHCP** - Dynamic IP assignment
-3. **Custom Static IP** - Specify your own IP address and gateway
+| Option | Description | Use Case |
+|--------|-------------|----------|
+| **Static IP (Auto)** | `192.168.1.VMID/24` | Simple setups, predictable IPs |
+| **DHCP** | Dynamic assignment | Quick testing, changing networks |
+| **Custom Static** | User-defined IP/gateway | Complex network topologies |
 
-## Special Features
+### 🔒 Tailscale Support
+The scripts automatically detect if your host configuration has Tailscale enabled and will configure TUN device access in the container configuration file.
 
-### Tailscale Support
-The scripts automatically detect if your host configuration has Tailscale enabled and will configure TUN device access in the container configuration file
-
-### Template Caching
+### 📦 Template Caching
 Base templates are cached on the Proxmox host to speed up subsequent container creation.
 
-## Troubleshooting
-
-### Common Issues
-
-- **SSH Access**: Ensure your user can SSH to the Proxmox host without password prompts
-- **Flake Access**: Verify your Git repository is accessible and contains valid NixOS configurations
-- **Container Startup**: Check Proxmox logs if containers fail to start
-- **Network Issues**: Verify network settings match your Proxmox network configuration
-
-### Verification Steps
-
-The scripts perform automatic verification including:
+### ✅ Built-in Verification
 - System status checks
 - Hostname verification  
 - Generation number validation
 - Container runtime status
 
+## 🛠️ Troubleshooting
 
-## License
+<details>
+<summary><strong>SSH Connection Issues</strong></summary>
+
+- **SSH Access**: Ensure your user can SSH to the Proxmox host without password prompts
+- Verify SSH key-based authentication is set up
+- Test connection: `ssh root@your-proxmox-host`
+</details>
+
+<details>
+<summary><strong>Flake Configuration Problems</strong></summary>
+
+- **Flake Access**: Verify your Git repository is accessible and contains valid NixOS configurations
+- Check that `nixosConfigurations` are properly defined
+- Test locally: `nix flake show your-repo-url`
+</details>
+
+<details>
+<summary><strong>Container Issues</strong></summary>
+
+- **Container Startup**: Check Proxmox logs if containers fail to start
+- **Network Issues**: Verify network settings match your Proxmox network configuration
+- Check container logs: `pct exec VMID -- journalctl -f`
+</details>
+
+
+
+## 📊 Compatibility
+
+| Component | Supported Versions |
+|-----------|-------------------|
+| **NixOS** | 22.11, 23.05, 23.11, unstable |
+| **Proxmox VE** | 7.0+, 8.0+ |
+
+## 📚 Related Projects
+
+- [Proxmox Helper Scripts](https://community-scripts.github.io/ProxmoxVE/scripts) - Inspiration for simplicity
+- [nixos-containers](https://github.com/NixOS/nixpkgs/tree/master/nixos/modules/virtualisation) - NixOS container modules
+- [microvm.nix](https://github.com/astro/microvm.nix) - Lightweight NixOS VMs
+
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
-I am a frequent user of [Promox Helper Scripts](https://community-scripts.github.io/ProxmoxVE/scripts). This project is aiming to be as simple as these helper scripts to deploy, with a nix-spin.
+Special thanks to:
+- The [Proxmox Helper Scripts](https://community-scripts.github.io/ProxmoxVE/scripts) community for inspiration - this project aims to be as simple as these helper scripts to deploy, with a Nix spin
+
+---
+
+<div align="center">
+
+**[⭐ Star this repo](https://github.com/pmontgo33/nxc-scripts)** • **[🐛 Report Bug](https://github.com/pmontgo33/nxc-scripts/issues)** • **[💡 Request Feature](https://github.com/pmontgo33/nxc-scripts/issues)**
+
+</div>
