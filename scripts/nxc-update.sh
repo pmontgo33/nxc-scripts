@@ -58,9 +58,6 @@ load_env_file() {
                 "DEFAULT_GATEWAY")
                     ENV_DEFAULT_GATEWAY="$value"
                     ;;
-                "SOPS_KEY_PATH")
-                    ENV_SOPS_KEY_PATH="$value"
-                    ;;
             esac
         done < "$env_file"
         return 0

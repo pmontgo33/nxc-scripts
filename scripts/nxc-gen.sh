@@ -387,7 +387,7 @@ read -p "Select an existing NXC base template by number or press enter to genera
 if [ -z "$selection" ]; then
     # Run nixos-generate command with the base template
     echo "Generating new NXC Base template (this may take several minutes)..."
-    output_dir=~/nxc-templates/nxc-base-$(date +%Y%m%d)
+    output_dir=./base-template
     nixos-generate -f proxmox-lxc \
     --flake "$flake_base_url#nxc-base" \
     -o "$output_dir"
@@ -395,7 +395,7 @@ if [ -z "$selection" ]; then
     sleep 5
     echo "New NXC Base template generation complete!"
     echo
-
+    exit 1
     # Find the template filename
     template_filename=$(find "$output_dir/tarball" -name "*.tar.xz" -exec basename {} \; 2>/dev/null | head -n1)
 
