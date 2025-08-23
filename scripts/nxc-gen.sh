@@ -212,6 +212,10 @@ else
     read -p "Enter Proxmox VE hostname or IP: " pve_host
 fi
 
+# Get next available VMID
+next_vmid=$(ssh "root@$pve_host" "pvesh get /cluster/nextid 2>/dev/null" 2>/dev/null)
+read -p "Enter VMID [$next_vmid]: " vmid
+
 # Prompt for hostname
 read -p "Enter NXC Hostname [$hostname]: " nxc_hostname
 # Set nxc_hostname to flake hostname if empty
@@ -219,14 +223,39 @@ if [ -z "$nxc_hostname" ]; then
     nxc_hostname="$hostname"
 fi
 
-# Get next available VMID
-next_vmid=$(ssh "root@$pve_host" "pvesh get /cluster/nextid 2>/dev/null" 2>/dev/null)
-read -p "Enter VMID [$next_vmid]: " vmid
-
 # Set VMID to next_vmid if empty
 if [ -z "$vmid" ]; then
     vmid="$next_vmid"
 fi
+echo
+
+# Prompt for root password
+echo -n "Enter root password: "
+read -s password
+echo
+
+# Check if password was entered
+if [ -z "$password" ]; then
+    echo "Error: No password entered"
+    exit 1
+fi
+
+# Prompt for password confirmation
+echo -n "Confirm password: "
+read -s password_confirm
+echo
+
+# Check if passwords match
+if [ "$password" != "$password_confirm" ]; then
+    echo "Error: Passwords do not match"
+    # Clear both password variables for security
+    unset password password_confirm
+    exit 1
+fi
+
+echo
+echo "Passwords match successfully!"
+echo
 
 # Prompt for Memory
 if [ -n "$ENV_DEFAULT_MEMORY" ]; then
@@ -480,6 +509,16 @@ ssh "root@$pve_host" "pct exec $vmid -- /run/current-system/sw/bin/bash -c 'expo
 echo
 echo "================================================================"
 echo
+
+# Change root password
+echo "Setting root password on new host $nxc_hostname"
+ssh "root@$pve_host" "pct exec $vmid -- /run/current-system/sw/bin/sh -c 'echo \"root:$password\" | /run/current-system/sw/bin/chpasswd'"
+echo
+echo "================================================================"
+echo
+
+# Clear both password variables for security
+unset password password_confirm
 
 # Final verification
 echo "Performing final verification..."
