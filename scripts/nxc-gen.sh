@@ -6,9 +6,7 @@ clear
 # Welcome message
 echo "This script will create a NixOS LXC container based on a host from your flake.nix"
 echo "----------------------------------------------------------------------------------"
-echo "Prerequisites:"
-echo "  1. This script must run on an existing NixOS system"
-echo "  2. This script must run on a system with ssh access to the Proxmox VE host"
+echo "Prerequisite: This script must run on a system with ssh access to the Proxmox VE host"
 echo
 echo "Press Enter to continue..."
 read
@@ -325,31 +323,35 @@ while true; do
     # IP Address selection with options
     echo "Network Configuration:"
     echo "---------------------------"
-    echo "1) Static IP 192.168.86.$vmid/24 (Gateway: 192.168.86.1)"
-    echo "2) DHCP"
+    echo "1) DHCP"
+
+    if [ -n "$ENV_DEFAULT_GATEWAY" ]; then
+        subnet="${ENV_DEFAULT_GATEWAY%.*}"
+        echo "2) Static IP $subnet.$vmid/24 (Gateway: $ENV_DEFAULT_GATEWAY)"
+    fi
     echo "Other enter custom Static IP address"
     echo
     
     # Handle default network option from .env
     if [ -n "$ENV_DEFAULT_NETWORK_OPTION" ]; then
-        read -p "Select network option (1, 2) or enter custom IP address (e.g., 192.168.86.$vmid/24) [$ENV_DEFAULT_NETWORK_OPTION]: " ip_selection
+        read -p "Select network option (1, 2) or enter custom IP address (e.g., 192.168.x.$vmid/24) [$ENV_DEFAULT_NETWORK_OPTION]: " ip_selection
         if [ -z "$ip_selection" ]; then
             ip_selection="$ENV_DEFAULT_NETWORK_OPTION"
             echo "Using default network option from .env: $ip_selection"
         fi
     else
-        read -p "Select network option (1, 2) or enter custom IP address (e.g., 192.168.86.$vmid/24): " ip_selection
+        read -p "Select network option (1, 2) or enter custom IP address (e.g., 192.168.x.$vmid/24): " ip_selection
     fi
 
     case "$ip_selection" in
         1)
-            ip_address="192.168.86.$vmid/24"
-            gateway="192.168.86.1"
+            ip_address="dhcp"
+            gateway=""
             break
             ;;
         2)
-            ip_address="dhcp"
-            gateway=""
+            ip_address="192.168.86.$vmid/24"
+            gateway="192.168.86.1"
             break
             ;;
         *)
@@ -371,20 +373,45 @@ echo
 echo "================================================================"
 echo
 
-# Check for existing NXC Templates on PVE Host
-echo "Checking PVE Host $pve_host for existing NXC base templates..."
-nxc_templates=$(ssh "root@$pve_host" "pveam list local | grep nxc-base" | awk '{print $1}' | sed 's|.*:vztmpl/||')
-if [ -n "$nxc_templates" ]; then
-    echo "Available NXC base templates on $pve_host:"
-    echo "----------------------------------------------"
-    echo "$nxc_templates" | nl -w2 -s'. '
-    echo
-fi
-# Prompt for template
-read -p "Select an existing NXC base template by number or press enter to generate new: " selection
+echo "Choose how you’d like to define the base template..."
+echo
+echo "1. Select an existing NXC base template from your PVE Host $pve_host"
+echo "2. Generate a new NXC base template with nixos-generate (requires running on an existing NixOS System)"
+echo "3. Use pre-generated nxc-base template from NXC-Scripts repository"
+echo
+read -p "Enter an option: " selection
+echo
+if [ "$selection" = "1" ]; then
+    # Check for existing NXC Templates on PVE Host
+    echo "Checking PVE Host $pve_host for existing NXC base templates..."
+    nxc_templates=$(ssh "root@$pve_host" "pveam list local | grep nxc-base" | awk '{print $1}' | sed 's|.*:vztmpl/||')
+    if [ -n "$nxc_templates" ]; then
+        echo "Available NXC base templates on $pve_host:"
+        echo "----------------------------------------------"
+        echo "$nxc_templates" | nl -w2 -s'. '
+        echo
+    fi
+    # Prompt for template
+    read -p "Select an existing NXC base template by number or press enter to generate new: " template_selection
+    
+    # Check if the input is a number (matches a line number)
+    if [[ "$template_selection" =~ ^[0-9]+$ ]]; then
+        # Extract the corresponding template based on the number
+        template_filename=$(echo "$nxc_templates" | sed -n "${template_selection}p")
+    fi
+    # Check if the template actually exists in the list
+    if ! echo "$nxc_templates" | grep -Fxq "$template_filename"; then
+        echo "Invalid selection."
+        exit 1
+    fi
 
-# If Blank, generate new NXC base template
-if [ -z "$selection" ]; then
+    echo "You selected template $template_filename."
+    echo
+    echo "================================================================"
+    echo
+    template_path="/var/lib/vz/template/cache/$template_filename"
+
+elif [ "$selection" = "2" ]; then
     # Run nixos-generate command with the base template
     echo "Generating new NXC Base template (this may take several minutes)..."
     output_dir=./base-template
@@ -395,7 +422,7 @@ if [ -z "$selection" ]; then
     sleep 5
     echo "New NXC Base template generation complete!"
     echo
-    exit 1
+
     # Find the template filename
     template_filename=$(find "$output_dir/tarball" -name "*.tar.xz" -exec basename {} \; 2>/dev/null | head -n1)
 
@@ -409,24 +436,27 @@ if [ -z "$selection" ]; then
     echo "Copying template to Proxmox host $pve_host..."
     scp "$output_dir/tarball/$template_filename" "root@$pve_host:$template_path"
     echo
-else
-    # Check if the input is a number (matches a line number)
-    if [[ "$selection" =~ ^[0-9]+$ ]]; then
-        # Extract the corresponding template based on the number
-        template_filename=$(echo "$nxc_templates" | sed -n "${selection}p")
-    fi
-    # Check if the template actually exists in the list
-    if ! echo "$nxc_templates" | grep -Fxq "$template_filename"; then
-        echo "Invalid selection."
+    
+elif [ "$selection" = "3" ]; then
+    echo "Using pre-generated nxc-base template from NXC-Scripts repository"
+    # Find the template filename
+    output_dir=./base-template
+    template_filename=$(find "$output_dir/tarball" -name "*.tar.xz" -exec basename {} \; 2>/dev/null | head -n1)
+
+    if [ -z "$template_filename" ]; then
+        echo "Error: Could not find template file in $output_dir/tarball"
         exit 1
     fi
+    template_path="/var/lib/vz/template/cache/nxc-base-$template_filename"
 
-    echo "You selected template $template_filename."
-    echo
-    echo "================================================================"
+    # Copy template to Proxmox host
+    echo "Copying template to Proxmox host $pve_host..."
+    scp "$output_dir/tarball/$template_filename" "root@$pve_host:$template_path"
     echo
     
-    template_path="/var/lib/vz/template/cache/$template_filename"
+else
+    echo "Error: Invalid selection. Please choose 1, 2, or 3."
+    exit 1
 fi
 
 # Build network configuration
