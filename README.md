@@ -29,9 +29,10 @@ Is this the same as [Proxmox Helper Scripts](https://community-scripts.github.io
 # 1. Clone the repository on your NixOS system
 git clone https://github.com/pmontgo33/nxc-scripts.git
 
-# 2. Configure your environment by editing .env with your Proxmox and repository settings
+# 2. Configure your environment (optional)
 cd nxc-scripts
-nano scripts/.env
+cp scripts/.env.example scripts/.env
+# Edit .env with your Proxmox and repository settings
 
 # 3. Create your first NXC
 bash scripts/nxc-gen.sh
@@ -40,7 +41,7 @@ bash scripts/nxc-gen.sh
 ## 📋 Prerequisites
 
 ### System Requirements
-- **NixOS system** to run the scripts from if you plan to generate a new template
+- **NixOS system** to run the scripts from if you plan to generate a new template (optional)
 - **SSH access** to your Proxmox VE host (key-based authentication recommended)
 - **Git repository** containing your NixOS flake configuration, or use the examples in this repository
 - **Nix flakes enabled** on your system
