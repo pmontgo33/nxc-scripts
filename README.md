@@ -40,7 +40,7 @@ bash scripts/nxc-gen.sh
 ## 📋 Prerequisites
 
 ### System Requirements
-- **NixOS system** to run the scripts from
+- **NixOS system** to run the scripts from if you plan to generate a new template
 - **SSH access** to your Proxmox VE host (key-based authentication recommended)
 - **Git repository** containing your NixOS flake configuration, or use the examples in this repository
 - **Nix flakes enabled** on your system
