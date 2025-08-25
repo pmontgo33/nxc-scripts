@@ -19,7 +19,7 @@
   # Firewall configuration
   networking.firewall = {
     enable = true;
-    allowedTCPPorts = [ 22 3000 ];  # SSH, HTTP, HTTPS
+    allowedTCPPorts = [ 22 3000 ];  # SSH, WebUI
   };
 
   system.stateVersion = "25.05";

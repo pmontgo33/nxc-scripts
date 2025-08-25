@@ -210,6 +210,13 @@ else
     read -p "Enter Proxmox VE hostname or IP: " pve_host
 fi
 
+# Query Proxmox VE host for available storage
+storage_info=$(ssh "root@$pve_host" "pvesm status --content images --enabled 1" 2>/dev/null | tail -n +2)
+if [[ -z "$storage_info" ]]; then
+    echo "Error: No container-compatible storage found on $host"
+    exit 1
+fi
+
 # Get next available VMID
 next_vmid=$(ssh "root@$pve_host" "pvesh get /cluster/nextid 2>/dev/null" 2>/dev/null)
 read -p "Enter VMID [$next_vmid]: " vmid
@@ -275,6 +282,78 @@ if [ -n "$ENV_DEFAULT_CORES" ]; then
     fi
 else
     read -p "Enter Cores: " cores
+fi
+
+# Function to convert KB to GB (Proxmox returns values in KB)
+kb_to_gb() {
+    local kb=$1
+    if [[ "$kb" =~ ^[0-9]+$ ]]; then
+        # Convert KB to GB with one decimal place
+        # 1 GB = 1024 * 1024 = 1048576 KB
+        local gb=$((kb / 1048576))
+        local remainder=$((kb % 1048576))
+        local decimal=$(( (remainder * 10) / 1048576 ))
+        
+        if [[ $decimal -eq 0 ]]; then
+            echo "${gb}"
+        else
+            echo "${gb}.${decimal}"
+        fi
+    else
+        echo "N/A"
+    fi
+}
+
+
+# List available storage options on PVE host
+echo
+echo "Available storage options for containers:"
+echo "========================================="
+printf "%-3s | %-12s | %-8s | %-8s | %-10s | %-9s | %-10s | %s\n" "ID" "Name" "Type" "Status" "Total (GB)" "Used (GB)" "Avail (GB)" "Usage%"
+echo "----+--------------+----------+----------+------------+-----------+------------+---------"
+# Parse and display storage options with index numbers
+counter=1
+storage_names=()
+
+while IFS= read -r line; do
+    if [[ -n "$line" ]]; then
+        # Parse the line fields
+        storage_name=$(echo "$line" | awk '{print $1}')
+        storage_type=$(echo "$line" | awk '{print $2}')
+        storage_status=$(echo "$line" | awk '{print $3}')
+        total_value=$(echo "$line" | awk '{print $4}')
+        used_value=$(echo "$line" | awk '{print $5}')
+        avail_value=$(echo "$line" | awk '{print $6}')
+        usage_percent=$(echo "$line" | awk '{print $7}')
+        
+        storage_names+=("$storage_name")
+        
+        # Convert KB to GB
+        total_gb=$(kb_to_gb "$total_value")
+        used_gb=$(kb_to_gb "$used_value")
+        avail_gb=$(kb_to_gb "$avail_value")
+        
+        # Format and display the line with proper spacing
+        printf "%-3d | %-12s | %-8s | %-8s | %10s | %9s | %10s | %s\n" \
+            "$counter" "$storage_name" "$storage_type" "$storage_status" \
+            "${total_gb}GB" "${used_gb}GB" "${avail_gb}GB" "$usage_percent"
+        ((counter++))
+    fi
+done <<< "$storage_info"
+
+echo
+
+# Prompt for storage
+read -p "Select storage (1-$((counter-1))): " selection
+echo
+# Validate input
+if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -lt "$counter" ]; then
+    selected_storage="${storage_names[$((selection-1))]}"
+    echo "Selected storage: $selected_storage"
+    echo
+else
+    echo "Invalid selection!"
+    exit 1
 fi
 
 # Prompt for Disk Size
@@ -467,7 +546,7 @@ fi
 
 # Create the container
 echo "Creating container on Proxmox host $pve_host..."
-ssh "root@$pve_host" "pct create $vmid $template_path --hostname $nxc_hostname --memory $memory --cores $cores --rootfs local-zfs:$disk_size --unprivileged 1 --features nesting=1 --onboot 1 --tags nixos --net0 $net_config"
+ssh "root@$pve_host" "pct create $vmid $template_path --hostname $nxc_hostname --memory $memory --cores $cores --rootfs $selected_storage:$disk_size --unprivileged 1 --features nesting=1 --onboot 1 --tags nixos --net0 $net_config"
 echo
 
 echo "Checking if $hostname has Tailscale enabled..."
