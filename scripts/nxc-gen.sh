@@ -448,6 +448,12 @@ while true; do
     esac
 done
 
+# Build network configuration
+net_config="name=eth0,bridge=vmbr0,ip=$ip_address"
+if [[ "$ip_address" != "dhcp" && "$ip_address" != "DHCP" && -n "$gateway" ]]; then
+    net_config="$net_config,gw=$gateway"
+fi
+
 echo
 echo "================================================================"
 echo
@@ -536,12 +542,6 @@ elif [ "$selection" = "3" ]; then
 else
     echo "Error: Invalid selection. Please choose 1, 2, or 3."
     exit 1
-fi
-
-# Build network configuration
-net_config="name=eth0,bridge=vmbr0,ip=$ip_address"
-if [[ "$ip_address" != "dhcp" && "$ip_address" != "DHCP" && -n "$gateway" ]]; then
-    net_config="$net_config,gw=$gateway"
 fi
 
 # Create the container
