@@ -1,5 +1,8 @@
 #!/bin/bash
-source lib/common.sh
+
+# Get the directory where the script is located and source common functions
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/common.sh"
 
 # Clear the terminal
 clear
@@ -24,76 +27,49 @@ else
 fi
 echo "================================================================"
 echo
-echo "Define Flake Repository"
-echo "-------------------------"
 
-fetch_flake_repository
+# Setup repository, branch, and flake URL
+setup_repository
+setup_branch
+setup_flake_url
+
+# Select hostname from flake
+select_hostname
 
 # LXC Identification
 echo "Select NXC to Update:"
 echo "-------------------------------------"
 
-fetch_pve_host
-
-echo "NixOS LXCs on this Proxmox host:"
-nixos_lxcs=()
-valid_vmids=()
-
-for vmid in $(ssh "root@$pve_host" "pct list" | awk 'NR>1 {print $1}'); do
-    if ssh "root@$pve_host" "pct config '$vmid'" | grep -q "ostype: nixos"; then
-        name=$(ssh "root@$pve_host" "pct list" | awk -v id="$vmid" '$1==id {print $3}')
-        nixos_lxcs+=("$vmid:$name")
-        valid_vmids+=("$vmid")
-    fi
-done
-
-for lxc in "${nixos_lxcs[@]}"; do
-    vmid_display="${lxc%%:*}"
-    name="${lxc#*:}"
-    echo "$vmid_display. $name"
-done
-
-# Prompt user for VMID selection
-while true; do
-    echo
-    read -p "Enter the VMID for the NXC to be updated: " vmid
-    
-    # Check if input is blank
-    if [[ -z "$vmid" ]]; then
-        echo "Error: VMID cannot be blank. Please try again."
-        continue
-    fi
-    
-    # Check if VMID exists in our valid list
-    if [[ " ${valid_vmids[*]} " == *" $vmid "* ]]; then
-        break
-    else
-        echo "Error: '$vmid' is not a valid VMID from the list. Please try again."
-    fi
-done
-
-echo "You selected VMID $vmid"
-echo
-echo "================================================================"
-echo
-    
-tailscale_tun_config
-
-echo
-echo "================================================================"
+# Setup Proxmox host
+setup_proxmox_host
 echo
 
-confirm_lxc_running
+# List available NixOS LXCs and get selection
+list_nixos_lxcs "$pve_host"
 
-rebuild_nxc
+# Select VMID from available options
+select_vmid "${valid_vmids[@]}"
+
+# Configure Tailscale if needed
+configure_tailscale "$vmid" "$hostname" "$pve_host"
+
+# Ensure container is running
+ensure_container_running "$vmid" "$pve_host"
 
 echo
-echo "================================================================"
+echo "Container is running. Beginning rebuild with $hostname configuration..."
 echo
 
-perform_nxc_verification
+# Get container IP
+get_container_ip "$vmid" "$pve_host"
 
-echo
-echo "======================================================================"
-echo
+# Perform nixos-rebuild and get initial generation
+initial_generation=$(perform_rebuild "$vmid" "$hostname" "$pve_host")
+
+# Perform final verification
+final_success=$(perform_final_verification "$vmid" "$hostname" "$pve_host" "$initial_generation" "$container_ip")
+
+# Display final results
+display_final_results "$final_success" "$vmid" "$hostname" "$container_ip" "N/A" "update"
+
 exit 1

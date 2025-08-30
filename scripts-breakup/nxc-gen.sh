@@ -1,6 +1,8 @@
 #!/bin/bash
-source lib/common.sh
-source lib/utils.sh
+
+# Get the directory where the script is located and source common functions
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/common.sh"
 
 # Clear the terminal
 clear
@@ -16,7 +18,6 @@ echo "================================================================"
 echo
 
 # Load environment variables from .env file
-
 if load_env_file; then
     echo "Found .env file, checking for configuration..."
     echo
@@ -26,21 +27,26 @@ else
 fi
 echo "================================================================"
 echo
-echo "Define Flake Repository"
-echo "-------------------------"
 
-fetch_flake_repository
+# Setup repository, branch, and flake URL
+setup_repository
+setup_branch
+setup_flake_url
+
+# Select hostname from flake
+select_hostname
 
 # LXC Basics
 echo "LXC Basic Configuration Options:"
 echo "-------------------------------------"
 
-fetch_pve_host
+# Setup Proxmox host
+setup_proxmox_host
 
 # Query Proxmox VE host for available storage
 storage_info=$(ssh "root@$pve_host" "pvesm status --content images --enabled 1" 2>/dev/null | tail -n +2)
 if [[ -z "$storage_info" ]]; then
-    echo "Error: No container-compatible storage found on $host"
+    echo "Error: No container-compatible storage found on $pve_host"
     exit 1
 fi
 
@@ -111,6 +117,26 @@ else
     read -p "Enter Cores: " cores
 fi
 
+# Function to convert KB to GB (Proxmox returns values in KB)
+kb_to_gb() {
+    local kb=$1
+    if [[ "$kb" =~ ^[0-9]+$ ]]; then
+        # Convert KB to GB with one decimal place
+        # 1 GB = 1024 * 1024 = 1048576 KB
+        local gb=$((kb / 1048576))
+        local remainder=$((kb % 1048576))
+        local decimal=$(( (remainder * 10) / 1048576 ))
+        
+        if [[ $decimal -eq 0 ]]; then
+            echo "${gb}"
+        else
+            echo "${gb}.${decimal}"
+        fi
+    else
+        echo "N/A"
+    fi
+}
+
 # List available storage options on PVE host
 echo
 echo "Available storage options for containers:"
@@ -176,6 +202,34 @@ echo
 echo "================================================================"
 echo
 
+# Function to validate CIDR format
+validate_cidr() {
+    local ip="$1"
+    # Check if it matches basic CIDR format (IP/prefix)
+    if [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$ ]]; then
+        # Extract IP and prefix
+        local ip_part=$(echo "$ip" | cut -d'/' -f1)
+        local prefix=$(echo "$ip" | cut -d'/' -f2)
+        
+        # Validate IP octets (0-255)
+        IFS='.' read -ra octets <<< "$ip_part"
+        for octet in "${octets[@]}"; do
+            if [[ $octet -lt 0 || $octet -gt 255 ]]; then
+                return 1
+            fi
+        done
+        
+        # Validate prefix (0-32)
+        if [[ $prefix -lt 0 || $prefix -gt 32 ]]; then
+            return 1
+        fi
+        
+        return 0
+    else
+        return 1
+    fi
+}
+
 while true; do
     # IP Address selection with options
     echo "Network Configuration:"
@@ -236,7 +290,7 @@ echo
 echo "================================================================"
 echo
 
-echo "Choose how you’d like to define the base template..."
+echo "Choose how you'd like to define the base template..."
 echo
 echo "1. Select an existing NXC base template from your PVE Host $pve_host"
 echo "2. Generate a new NXC base template with nixos-generate (requires running on an existing NixOS System)"
@@ -326,28 +380,43 @@ fi
 echo "Creating container on Proxmox host $pve_host..."
 ssh "root@$pve_host" "pct create $vmid $template_path --hostname $nxc_hostname --memory $memory --cores $cores --rootfs $selected_storage:$disk_size --unprivileged 1 --features nesting=1 --onboot 1 --tags nixos --net0 $net_config"
 echo
-echo "================================================================"
-echo
 
-tailscale_tun_config
-
-echo
-echo "================================================================"
-echo
-
+# Configure Tailscale if needed
+configure_tailscale "$vmid" "$hostname" "$pve_host"
 
 # Start NixOS LXC Base container
 echo "Starting LXC container for configuration phase..."
 ssh "root@$pve_host" "pct start $vmid"
 echo
 
-confirm_lxc_running
-
-rebuild_nxc
-
+# Wait for container to be ready
+echo "Waiting for container to start..."
+sleep 10
 echo
-echo "================================================================"
+
+# Check if container is running
+while ! ssh "root@$pve_host" "pct status $vmid | grep -q running"; do
+    echo "Waiting for container to be ready..."
+    echo
+    sleep 5
+done
+
+echo "Container is running. Beginning rebuild with $hostname configuration..."
 echo
+
+# Get the container's IP address
+if [[ "$ip_address" == "dhcp" || "$ip_address" == "DHCP" ]]; then
+    # For DHCP, we need to get the assigned IP from Proxmox
+    get_container_ip "$vmid" "$pve_host"
+else
+    # Extract IP from CIDR notation (remove /XX)
+    container_ip=$(echo "$ip_address" | cut -d'/' -f1)
+    echo "Container IP: $container_ip"
+    echo
+fi
+
+# Perform nixos-rebuild and get initial generation
+initial_generation=$(perform_rebuild "$vmid" "$hostname" "$pve_host")
 
 # Change root password
 echo "Setting root password on new host $nxc_hostname"
@@ -359,9 +428,10 @@ echo
 # Clear both password variables for security
 unset password password_confirm
 
-perform_nxc_verification
+# Perform final verification
+final_success=$(perform_final_verification "$vmid" "$hostname" "$pve_host" "$initial_generation" "$container_ip")
 
-echo
-echo "======================================================================"
-echo
+# Display final results
+display_final_results "$final_success" "$vmid" "$nxc_hostname" "$container_ip" "$template_filename" "setup"
+
 exit 1
