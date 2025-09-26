@@ -7,7 +7,7 @@
   ];
 	
   environment.systemPackages = with pkgs; [
-    
+    inputs.nixpkgs-unstable.legacyPackages.${pkgs.system}.isponsorblocktv
   ];
 
   # Enable the OpenSSH daemon.
