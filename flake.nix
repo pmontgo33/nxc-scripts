@@ -99,6 +99,23 @@
       ];
     };
 
+    ## isponsorblocktv ##
+    nixosConfigurations.isponsorblocktv = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit inputs; };
+      modules = [
+        ./hosts/isponsorblocktv
+
+        home-manager.nixosModules.home-manager
+        {
+          home-manager.useGlobalPkgs = true;
+          home-manager.useUserPackages = true;
+          home-manager.backupFileExtension = "backup";
+          home-manager.extraSpecialArgs = { inherit inputs; };
+        }
+      ];
+    };
+
     ## technitium ##
     nixosConfigurations.technitium = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
