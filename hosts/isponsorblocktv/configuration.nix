@@ -1,4 +1,4 @@
-{ pkgs, modulesPath, inputs, outputs, ... }:
+{ pkgs, modulesPath, inputs, outputs, lib, ... }:
 
 {
   imports = [
@@ -6,8 +6,243 @@
     (modulesPath + "/virtualisation/proxmox-lxc.nix")
   ];
 	
+  # environment.systemPackages = with pkgs; [
+  #   inputs.nixpkgs-unstable.legacyPackages.${pkgs.system}.isponsorblocktv
+  # ];
+
+  # Enable Podman as the OCI container backend
+  virtualisation = {
+    podman = {
+      enable = true;
+      # Docker compatibility layer (optional)
+      dockerCompat = true;
+      # Auto-prune containers and images periodically
+      autoPrune = {
+        enable = true;
+        dates = "weekly";
+      };
+    };
+
+    # Configure OCI containers to use podman
+    oci-containers = {
+      backend = "podman";
+      
+      containers = {
+        isponsorblocktv = {
+          image = "ghcr.io/dmunozv04/isponsorblocktv:latest";
+          autoStart = true;
+          
+          # Volume mounts
+          volumes = [
+            "/var/lib/isponsorblocktv/data:/app/data:Z"
+          ];
+          
+          # Use host networking for device discovery
+          extraOptions = [
+            "--network=host"
+            "--user=0:0"
+            "--log-driver=journald"
+          ];
+          
+          # Environment variables (if needed)
+          environment = {
+            PYTHONUNBUFFERED = "1";
+          };
+        };
+      };
+    };
+  };
+
+  # Create isponsorblocktv user and group
+  users.users.isponsorblocktv = {
+    isSystemUser = true;
+    group = "isponsorblocktv";
+    home = "/var/lib/isponsorblocktv";
+    createHome = true;
+    homeMode = "755";
+    description = "iSponsorBlockTV service user";
+  };
+
+  users.groups.isponsorblocktv = {};
+
+  # Create data directory with proper permissions
+  systemd.tmpfiles.rules = [
+    "d /var/lib/isponsorblocktv 0755 isponsorblocktv isponsorblocktv -"
+    "d /var/lib/isponsorblocktv/data 0755 isponsorblocktv isponsorblocktv -"
+  ];
+
+  # Override the generated systemd service to run as isponsorblocktv user
+  systemd.services."podman-isponsorblocktv" = {
+    serviceConfig = {
+      # Run as isponsorblocktv user instead of root
+      User = lib.mkForce "isponsorblocktv";
+      Group = lib.mkForce "isponsorblocktv";
+      
+      # Additional security settings
+      PrivateTmp = true;
+      ProtectSystem = "strict";
+      ProtectHome = true;
+      ReadWritePaths = [ "/var/lib/isponsorblocktv" ];
+      
+      # Restart configuration
+      Restart = lib.mkForce "always";
+      RestartSec = "30";
+    };
+    
+    # Ensure proper ordering
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+  };
+
+  # Setup service for initial configuration
+  systemd.services.isponsorblocktv-setup = {
+    description = "iSponsorBlockTV Initial Setup Check";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      User = "isponsorblocktv";
+      Group = "isponsorblocktv";
+    };
+
+    script = ''
+      # Check if config already exists
+      if [ ! -f /var/lib/isponsorblocktv/data/config.json ]; then
+        echo "=========================================="
+        echo "iSponsorBlockTV Configuration Required"
+        echo "=========================================="
+        echo "No configuration found. Please run setup:"
+        echo ""
+        echo "Graphical setup:"
+        echo "  sudo isponsorblocktv-setup"
+        echo ""
+        echo "CLI setup:"
+        echo "  sudo isponsorblocktv-setup-cli"
+        echo ""
+        echo "The service will start automatically after configuration."
+        echo "=========================================="
+      else
+        echo "iSponsorBlockTV configuration found. Service ready."
+      fi
+    '';
+  };
+
+  # Helper scripts for setup and management
   environment.systemPackages = with pkgs; [
-    inputs.nixpkgs-unstable.legacyPackages.${pkgs.system}.isponsorblocktv
+    (writeShellScriptBin "isponsorblocktv-setup" ''
+      #!/bin/bash
+      # Interactive setup script for iSponsorBlockTV
+      
+      if [ "$EUID" -ne 0 ]; then
+        echo "Please run this script as root or with sudo"
+        exit 1
+      fi
+      
+      echo "Starting iSponsorBlockTV graphical setup..."
+      echo "This will run interactively. Follow the prompts to configure your devices."
+      echo ""
+      
+      # Stop the main service temporarily
+      systemctl stop podman-isponsorblocktv 2>/dev/null || true
+      
+      # Run setup as isponsorblocktv user
+      sudo -u isponsorblocktv ${podman}/bin/podman run --rm -it \
+        --network host \
+        -v /var/lib/isponsorblocktv/data:/app/data:Z \
+        -e TERM="$TERM" \
+        -e COLORTERM="$COLORTERM" \
+        ghcr.io/dmunozv04/isponsorblocktv:latest \
+        --setup
+      
+      if [ $? -eq 0 ]; then
+        echo ""
+        echo "Setup completed successfully!"
+        echo "Starting iSponsorBlockTV service..."
+        systemctl start podman-isponsorblocktv
+        systemctl enable podman-isponsorblocktv
+        echo "Service started and enabled for auto-start."
+        echo ""
+        echo "Check status with: systemctl status podman-isponsorblocktv"
+        echo "View logs with: isponsorblocktv-logs"
+      else
+        echo ""
+        echo "Setup was cancelled or failed."
+      fi
+    '')
+    
+    (writeShellScriptBin "isponsorblocktv-setup-cli" ''
+      #!/bin/bash
+      # CLI setup script for iSponsorBlockTV
+      
+      if [ "$EUID" -ne 0 ]; then
+        echo "Please run this script as root or with sudo"
+        exit 1
+      fi
+      
+      echo "Starting iSponsorBlockTV CLI setup..."
+      echo "You'll need your TV's Link Code from YouTube app: Settings -> Link with TV code"
+      echo ""
+      
+      # Stop the main service temporarily
+      systemctl stop podman-isponsorblocktv 2>/dev/null || true
+      
+      # Run CLI setup as isponsorblocktv user
+      sudo -u isponsorblocktv ${podman}/bin/podman run --rm -it \
+        --network host \
+        -v /var/lib/isponsorblocktv/data:/app/data:Z \
+        ghcr.io/dmunozv04/isponsorblocktv:latest \
+        --setup-cli
+      
+      if [ $? -eq 0 ]; then
+        echo ""
+        echo "Setup completed successfully!"
+        echo "Starting iSponsorBlockTV service..."
+        systemctl start podman-isponsorblocktv
+        systemctl enable podman-isponsorblocktv
+        echo "Service started and enabled for auto-start."
+        echo ""
+        echo "Check status with: systemctl status podman-isponsorblocktv"
+        echo "View logs with: isponsorblocktv-logs"
+      else
+        echo ""
+        echo "Setup was cancelled or failed."
+      fi
+    '')
+
+    (writeShellScriptBin "isponsorblocktv-logs" ''
+      #!/bin/bash
+      # Show logs for iSponsorBlockTV service
+      journalctl -u podman-isponsorblocktv -f
+    '')
+
+    (writeShellScriptBin "isponsorblocktv-status" ''
+      #!/bin/bash
+      # Show comprehensive status for iSponsorBlockTV
+      echo "=== iSponsorBlockTV Service Status ==="
+      systemctl status podman-isponsorblocktv --no-pager -l
+      
+      echo ""
+      echo "=== Container Status ==="
+      sudo -u isponsorblocktv ${podman}/bin/podman ps -a --filter name=isponsorblocktv
+      
+      echo ""
+      echo "=== Configuration Check ==="
+      if [ -f /var/lib/isponsorblocktv/data/config.json ]; then
+        echo "✓ Configuration file exists"
+        echo "Config location: /var/lib/isponsorblocktv/data/config.json"
+      else
+        echo "✗ No configuration found - run setup first"
+      fi
+      
+      echo ""
+      echo "=== Recent Logs (last 10 lines) ==="
+      journalctl -u podman-isponsorblocktv --no-pager -n 10
+    '')
+
+
   ];
 
   # Enable the OpenSSH daemon.
