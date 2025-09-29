@@ -149,8 +149,6 @@
       sudo -u root ${podman}/bin/podman run --rm -it \
         --network host \
         -v /var/lib/isponsorblocktv/data:/app/data:Z \
-        -e TERM="$TERM" \
-        -e COLORTERM="$COLORTERM" \
         ghcr.io/dmunozv04/isponsorblocktv:latest \
         --setup
       
