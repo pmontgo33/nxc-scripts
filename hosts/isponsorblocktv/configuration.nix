@@ -145,8 +145,8 @@
       # Stop the main service temporarily
       systemctl stop podman-isponsorblocktv 2>/dev/null || true
       
-      # Run setup as isponsorblocktv user
-      sudo -u isponsorblocktv ${podman}/bin/podman run --rm -it \
+      # Run setup as root user
+      sudo -u root ${podman}/bin/podman run --rm -it \
         --network host \
         -v /var/lib/isponsorblocktv/data:/app/data:Z \
         -e TERM="$TERM" \
@@ -187,7 +187,7 @@
       systemctl stop podman-isponsorblocktv 2>/dev/null || true
       
       # Run CLI setup as isponsorblocktv user
-      sudo -u isponsorblocktv ${podman}/bin/podman run --rm -it \
+      sudo -u root ${podman}/bin/podman run --rm -it \
         --network host \
         -v /var/lib/isponsorblocktv/data:/app/data:Z \
         ghcr.io/dmunozv04/isponsorblocktv:latest \
@@ -223,7 +223,7 @@
       
       echo ""
       echo "=== Container Status ==="
-      sudo -u isponsorblocktv ${podman}/bin/podman ps -a --filter name=isponsorblocktv
+      sudo -u root ${podman}/bin/podman ps -a --filter name=isponsorblocktv
       
       echo ""
       echo "=== Configuration Check ==="
