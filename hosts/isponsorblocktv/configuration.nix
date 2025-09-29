@@ -14,9 +14,7 @@
   virtualisation = {
     podman = {
       enable = true;
-      # Docker compatibility layer (optional)
       dockerCompat = true;
-      # Auto-prune containers and images periodically
       autoPrune = {
         enable = true;
         dates = "weekly";
@@ -31,20 +29,14 @@
         isponsorblocktv = {
           image = "ghcr.io/dmunozv04/isponsorblocktv:latest";
           autoStart = true;
-          
-          # Volume mounts
           volumes = [
             "/var/lib/isponsorblocktv/data:/app/data:Z"
           ];
-          
-          # Use host networking for device discovery
           extraOptions = [
             "--network=host"
             "--user=0:0"
             "--log-driver=journald"
           ];
-          
-          # Environment variables (if needed)
           environment = {
             PYTHONUNBUFFERED = "1";
           };
@@ -53,46 +45,51 @@
     };
   };
 
-  # Create isponsorblocktv user and group
-  users.users.isponsorblocktv = {
-    isSystemUser = true;
-    group = "isponsorblocktv";
-    home = "/var/lib/isponsorblocktv";
-    createHome = true;
-    homeMode = "755";
-    description = "iSponsorBlockTV service user";
-  };
-
-  users.groups.isponsorblocktv = {};
-
-  # Create data directory with proper permissions
   systemd.tmpfiles.rules = [
-    "d /var/lib/isponsorblocktv 0755 isponsorblocktv isponsorblocktv -"
-    "d /var/lib/isponsorblocktv/data 0755 isponsorblocktv isponsorblocktv -"
+    "d /var/lib/isponsorblocktv 0755 root root -"
+    "d /var/lib/isponsorblocktv/data 0755 root root -"
   ];
 
-  # Override the generated systemd service to run as isponsorblocktv user
-  systemd.services."podman-isponsorblocktv" = {
-    serviceConfig = {
-      # Run as isponsorblocktv user instead of root
-      User = lib.mkForce "isponsorblocktv";
-      Group = lib.mkForce "isponsorblocktv";
+  # Create isponsorblocktv user and group
+  # users.users.isponsorblocktv = {
+  #   isSystemUser = true;
+  #   group = "isponsorblocktv";
+  #   home = "/var/lib/isponsorblocktv";
+  #   createHome = true;
+  #   homeMode = "755";
+  #   description = "iSponsorBlockTV service user";
+  # };
+
+  # users.groups.isponsorblocktv = {};
+
+  # Create data directory with proper permissions
+  # systemd.tmpfiles.rules = [
+  #   "d /var/lib/isponsorblocktv 0755 isponsorblocktv isponsorblocktv -"
+  #   "d /var/lib/isponsorblocktv/data 0755 isponsorblocktv isponsorblocktv -"
+  # ];
+
+  # # Override the generated systemd service to run as isponsorblocktv user
+  # systemd.services."podman-isponsorblocktv" = {
+  #   serviceConfig = {
+  #     # Run as isponsorblocktv user instead of root
+  #     User = lib.mkForce "isponsorblocktv";
+  #     Group = lib.mkForce "isponsorblocktv";
       
-      # Additional security settings
-      PrivateTmp = true;
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      ReadWritePaths = [ "/var/lib/isponsorblocktv" ];
+  #     # Additional security settings
+  #     PrivateTmp = true;
+  #     ProtectSystem = "strict";
+  #     ProtectHome = true;
+  #     ReadWritePaths = [ "/var/lib/isponsorblocktv" ];
       
-      # Restart configuration
-      Restart = lib.mkForce "always";
-      RestartSec = "30";
-    };
+  #     # Restart configuration
+  #     Restart = lib.mkForce "always";
+  #     RestartSec = "30";
+  #   };
     
-    # Ensure proper ordering
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
-  };
+  #   # Ensure proper ordering
+  #   after = [ "network-online.target" ];
+  #   wants = [ "network-online.target" ];
+  # };
 
   # Setup service for initial configuration
   systemd.services.isponsorblocktv-setup = {
