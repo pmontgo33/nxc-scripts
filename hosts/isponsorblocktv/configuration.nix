@@ -101,8 +101,8 @@
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      User = "isponsorblocktv";
-      Group = "isponsorblocktv";
+      User = "root";
+      Group = "root";
     };
 
     script = ''
