@@ -129,45 +129,6 @@
 
   # Helper scripts for setup and management
   environment.systemPackages = with pkgs; [
-    (writeShellScriptBin "isponsorblocktv-setup" ''
-      #!/bin/bash
-      # Interactive setup script for iSponsorBlockTV
-      
-      if [ "$EUID" -ne 0 ]; then
-        echo "Please run this script as root or with sudo"
-        exit 1
-      fi
-      
-      echo "Starting iSponsorBlockTV graphical setup..."
-      echo "This will run interactively. Follow the prompts to configure your devices."
-      echo ""
-      
-      # Stop the main service temporarily
-      systemctl stop podman-isponsorblocktv 2>/dev/null || true
-      
-      # Run setup as root user
-      sudo -u root ${podman}/bin/podman run --rm -it \
-        --network host \
-        -v /var/lib/isponsorblocktv/data:/app/data:Z \
-        ghcr.io/dmunozv04/isponsorblocktv:latest \
-        --setup
-      
-      if [ $? -eq 0 ]; then
-        echo ""
-        echo "Setup completed successfully!"
-        echo "Starting iSponsorBlockTV service..."
-        systemctl start podman-isponsorblocktv
-        systemctl enable podman-isponsorblocktv
-        echo "Service started and enabled for auto-start."
-        echo ""
-        echo "Check status with: systemctl status podman-isponsorblocktv"
-        echo "View logs with: isponsorblocktv-logs"
-      else
-        echo ""
-        echo "Setup was cancelled or failed."
-      fi
-    '')
-    
     (writeShellScriptBin "isponsorblocktv-setup-cli" ''
       #!/bin/bash
       # CLI setup script for iSponsorBlockTV
