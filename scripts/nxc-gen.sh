@@ -444,7 +444,7 @@ initial_generation=$(perform_rebuild "$vmid" "$hostname" "$pve_host")
 
 # Change root password
 echo "Setting root password on new host $nxc_hostname"
-ssh "root@$pve_host" "pct exec $vmid -- /run/current-system/sw/bin/sh -c 'echo \"root:$password\" | /run/current-system/sw/bin/chpasswd'"
+ssh "root@$pve_host" "pct exec $vmid -- /run/current-system/sw/bin/sh -c '/run/current-system/sw/bin/chpasswd'" <<< "root:$password"
 echo
 echo "================================================================"
 echo
