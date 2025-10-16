@@ -95,6 +95,24 @@ echo
 echo "Passwords match successfully!"
 echo
 
+# Prompt for privileged
+while true; do
+    read -p "Create nxc as privileged? [y/N]: " privileged
+    
+    # Convert to lowercase for comparison
+    privileged_lower=$(echo "$privileged" | tr '[:upper:]' '[:lower:]')
+    
+    if [ -z "$privileged_lower" ] || [ "$privileged_lower" = "n" ]; then
+        unprivileged=1
+        break
+    elif [ "$privileged_lower" = "y" ]; then
+        unprivileged=0
+        break
+    else
+        echo "Invalid input. Please enter 'y' or 'n'."
+    fi
+done
+
 # Prompt for Memory
 if [ -n "$ENV_DEFAULT_MEMORY" ]; then
     read -p "Enter Memory (MB) [$ENV_DEFAULT_MEMORY]: " memory
@@ -378,7 +396,7 @@ fi
 
 # Create the container
 echo "Creating container on Proxmox host $pve_host..."
-ssh "root@$pve_host" "pct create $vmid $template_path --hostname $nxc_hostname --memory $memory --cores $cores --rootfs $selected_storage:$disk_size --unprivileged 1 --features nesting=1 --onboot 1 --tags nixos --net0 $net_config"
+ssh "root@$pve_host" "pct create $vmid $template_path --hostname $nxc_hostname --unprivileged $unprivileged --memory $memory --cores $cores --rootfs $selected_storage:$disk_size --features nesting=1 --onboot 1 --tags nixos --net0 $net_config"
 echo
 
 # Configure Tailscale if needed

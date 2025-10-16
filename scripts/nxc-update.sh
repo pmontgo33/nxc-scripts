@@ -56,6 +56,28 @@ configure_tailscale "$vmid" "$hostname" "$pve_host"
 # Ensure container is running
 ensure_container_running "$vmid" "$pve_host"
 
+echo "SOPS Age Key Setup:"
+echo "-------------------"
+read -p "Copy SOPS age key from existing host? (y/n): " copy_key
+
+if [ "$copy_key" = "y" ]; then
+    echo "Copying SOPS age key..."
+    
+    # Create the sops-nix directory
+    ssh "root@$pve_host" "pct exec $vmid -- /run/current-system/sw/bin/mkdir -p /etc/sops/age"
+    
+    # Copy the key via the Proxmox host
+    cat /etc/sops/age/keys.txt | \
+    ssh "root@$pve_host" "pct exec $vmid -- /run/current-system/sw/bin/tee /etc/sops/age/keys.txt > /dev/null"
+    
+    # Set proper permissions
+    ssh "root@$pve_host" "pct exec $vmid -- /run/current-system/sw/bin/chmod 600 /etc/sops/age/keys.txt"
+    echo "SOPS key copied successfully!"
+else
+    echo "Skipping SOPS key copy."
+fi
+echo
+
 echo
 echo "Container is running. Beginning rebuild with $hostname configuration..."
 echo
