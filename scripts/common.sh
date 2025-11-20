@@ -148,7 +148,7 @@ select_hostname() {
     echo
 
     # Get the flake outputs and extract nixosConfigurations
-    available_hosts=$(nix flake show --json $flake_base_url 2>/dev/null | jq -r '.nixosConfigurations | keys[]' 2>/dev/null)
+    available_hosts=$(nix-shell -p jq --run "nix flake show --json $flake_base_url | jq -r '.nixosConfigurations | keys[]'")
 
     if [ -n "$available_hosts" ]; then
         echo "Available hosts:"
